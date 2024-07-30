@@ -28,6 +28,36 @@ resource "azurerm_public_ip" "ip" {
   allocation_method   = "Dynamic"
 }
 
+# Create Network Security Group and rules
+resource "azurerm_network_security_group" "nsg" {
+  name                = "${var.network}-nsg"
+  location            = var.location
+  resource_group_name = data.azurerm_resource_group.sandbox-rg.name
+
+  security_rule {
+    name                       = "RDP"
+    priority                   = 1000
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "*"
+    source_port_range          = "*"
+    destination_port_range     = "3389"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+  security_rule {
+    name                       = "web"
+    priority                   = 1001
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "80"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+}
+
 # Create nics using loop
 resource "azurerm_network_interface" "nic" {
   count               = length(var.vm_names)
@@ -41,6 +71,13 @@ resource "azurerm_network_interface" "nic" {
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = azurerm_public_ip.ip[count.index].id
   }
+}
+
+# Connect the security group to the network interface
+resource "azurerm_network_interface_security_group_association" "nic-nsg" {
+  count = length(var.vm_names)
+  network_interface_id      = azurerm_network_interface.nic[count.index].id
+  network_security_group_id = azurerm_network_security_group.nsg.id
 }
 
 #Create VMs using loop
